@@ -58,6 +58,44 @@ directions are asserted in `supabase/tests/01_rls_and_stats.sql`.
 [`src/config/market.ts`](src/config/market.ts) and localities carry a `region`
 key, so a second market is a seed, not a migration.
 
+## Deployment
+
+Live at **https://mejda-git-main-luigi-archs-projects.vercel.app** — Vercel
+project `mejda`, production branch `main`. Every push to `main` deploys; there
+are no feature branches.
+
+### The shared-database arrangement
+
+This app currently shares a Supabase project with an unrelated production system
+(a content pipeline with ~200k rows). That is a deliberate cost-saving choice
+for a prototype, and it constrains the schema in two visible ways:
+
+- **Every table, function and storage bucket carries an `rl_` prefix**, so
+  nothing collides with the 56 tables already in `public`.
+- **There is no trigger on `auth.users`.** A trigger there fires for the other
+  application's signups too, and any exception it raises aborts the INSERT — so
+  a bug here would break signup for a live business system. Profiles are created
+  on demand by `rl_ensure_profile()` instead.
+
+Both apps also share one `auth.users` pool, which is the part that does not
+scale past "friends trying it out".
+
+**Moving to a dedicated project** is a find-and-replace of `rl_` plus a re-run of
+`supabase/migrations/`. Worth doing before this carries real users.
+
+### Required manual step: auth redirect
+
+Magic-link sign-in will not work until the deployed origin is allowed in
+Supabase → **Authentication → URL Configuration → Redirect URLs**:
+
+```
+https://mejda-git-main-luigi-archs-projects.vercel.app/**
+```
+
+Without it Supabase ignores `emailRedirectTo` and bounces the user to the
+project's Site URL — which belongs to the other application — so the link
+appears to work and silently leaves you logged out.
+
 ## Getting started
 
 ```bash
