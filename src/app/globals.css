@@ -1,77 +1,224 @@
 @import "tailwindcss";
 
 /*
- * Palette drawn from Malta rather than from Letterboxd: globigerina limestone,
- * deep Mediterranean blue, and the painted-balcony reds and greens.
+ * A dining journal, not a review site.
  *
- * Dark is the primary mode — logging a meal happens at a table, in the evening,
- * on a phone.
+ * The reference points are Monocle, Linear and Apple Journal: generous
+ * whitespace, editorial typography, almost no chrome. Colour is used sparingly
+ * and always means something — olive for would-return, terracotta for wouldn't,
+ * navy for actions. Nothing decorative.
+ *
+ * Warm white is the primary surface. Dark mode is near-black with a navy cast
+ * and cream type, which is where the app will actually be used: at a table, in
+ * the evening.
  */
 :root {
-  --ink: #12100e;
-  --ink-soft: #1c1917;
-  --ink-raised: #262220;
-  --limestone: #e8dfd0;
-  --limestone-dim: #b8ab97;
-  --limestone-faint: #6b6256;
-  --sea: #1e6f8c;
-  --sea-bright: #35a0c4;
-  --balcony-red: #a8342a;
-  --balcony-green: #2f6b4f;
-  --gold: #d8a629;
+  --navy: #153b63;
+  --navy-soft: #1f5183;
+  --limestone: #e8d8b5;
+  --olive: #61754a;
+  --terracotta: #b45a45;
 
-  --background: var(--ink);
-  --surface: var(--ink-soft);
-  --surface-raised: var(--ink-raised);
-  --foreground: var(--limestone);
-  --muted: var(--limestone-dim);
-  --faint: var(--limestone-faint);
-  --accent: var(--sea-bright);
-  --border: #302b28;
+  --bg: #faf8f3;
+  --surface: #ffffff;
+  --surface-2: #f2eee5;
+  --border: #e4ddce;
+
+  --text: #16181c;
+  --dim: #5c6069;
+  --faint: #8d9199;
+
+  --accent: var(--navy);
+  --success: var(--olive);
+  --danger: var(--terracotta);
+
+  color-scheme: light dark;
 }
 
-@media (prefers-color-scheme: light) {
+@media (prefers-color-scheme: dark) {
   :root {
-    --background: #f7f2e9;
-    --surface: #fffdf9;
-    --surface-raised: #ffffff;
-    --foreground: #1c1917;
-    --muted: #5d5348;
-    --faint: #8b8073;
-    --accent: var(--sea);
-    --border: #ddd2be;
+    --bg: #0c0f14;
+    --surface: #131820;
+    --surface-2: #1a212b;
+    --border: #232c38;
+
+    --text: #f4efe4;
+    --dim: #9aa3b0;
+    --faint: #646d7a;
+
+    --accent: #6fa8dc;
+    --success: #8faa6e;
+    --danger: #d98570;
+    --limestone: #e8d8b5;
   }
 }
 
 @theme inline {
-  --color-background: var(--background);
+  --color-bg: var(--bg);
   --color-surface: var(--surface);
-  --color-surface-raised: var(--surface-raised);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
+  --color-surface-2: var(--surface-2);
+  --color-border-subtle: var(--border);
+  --color-text: var(--text);
+  --color-dim: var(--dim);
   --color-faint: var(--faint);
   --color-accent: var(--accent);
-  --color-border-subtle: var(--border);
-  --color-gold: var(--gold);
-  --color-balcony-red: var(--balcony-red);
-  --color-balcony-green: var(--balcony-green);
-  --color-sea: var(--sea);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-limestone: var(--limestone);
+  --color-navy: var(--navy);
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-display: var(--font-instrument), ui-serif, Georgia, serif;
 }
 
 * {
   border-color: var(--border);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  -webkit-font-smoothing: antialiased;
+html {
+  background: var(--bg);
 }
 
-/* Numerals in stats should line up in columns. */
+body {
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/*
+ * Restaurant names are titles in a guidebook. High-contrast serif, set large,
+ * tracked tight — the one place the design raises its voice.
+ */
+.display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  line-height: 1.02;
+}
+
+/* Statistics should read as data: even widths, no wobble as numbers change. */
 .tabular {
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Small caps label, used for section headers and metadata. */
+.label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* ---------------------------------------------------------------------------
+ * Motion — restrained, spring-weighted, and entirely in CSS.
+ * ------------------------------------------------------------------------- */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise {
+  animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+.sheet-up {
+  animation: sheet-up 0.32s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.fade-in {
+  animation: fade-in 0.2s ease both;
+}
+
+/* Stars settle rather than snap — the one flourish worth having. */
+@keyframes star-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.star-pop {
+  animation: star-pop 0.36s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+
+@keyframes grow-bar {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.grow-bar {
+  transform-origin: left;
+  animation: grow-bar 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.press {
+  transition:
+    transform 0.12s cubic-bezier(0.2, 0.7, 0.3, 1),
+    background-color 0.16s,
+    border-color 0.16s,
+    opacity 0.16s;
+}
+.press:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .sheet-up,
+  .fade-in,
+  .star-pop,
+  .grow-bar {
+    animation: none;
+  }
+  .press:active {
+    transform: none;
+  }
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Horizontal rails snap so cards never sit half-cut. */
+.rail {
+  scroll-snap-type: x mandatory;
+}
+.rail > * {
+  scroll-snap-align: start;
 }

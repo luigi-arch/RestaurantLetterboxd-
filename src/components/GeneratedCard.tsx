@@ -1,25 +1,46 @@
 /**
- * Deterministic geometric artwork for a restaurant with no photograph.
+ * Deterministic artwork for a restaurant with no photograph.
  *
- * Letterboxd gets its entire visual identity free from film posters. Restaurants
- * have no canonical image and, on day one, no diner photos either — which is
- * where most clones of this idea end up looking like a spreadsheet.
+ * Letterboxd gets its whole visual identity free from film posters. Restaurants
+ * have no canonical image, and this is where clones of the idea end up looking
+ * like a spreadsheet.
  *
- * So the floor is never an empty grey box. Each restaurant gets a stable pattern
- * derived from its own name, in the Malta palette: same restaurant, same card,
- * every time, with no network request.
+ * So every restaurant gets a stable identity anyway: the pattern comes from the
+ * cuisine, the palette and rotation from the name. Same restaurant, same card,
+ * every time, with no network request — and two pizzerias look related without
+ * looking identical.
  */
 
+/** Muted, plaster-and-pigment tones. Nothing here competes with a real photo. */
 const PALETTES = [
-  ["#1e6f8c", "#35a0c4"], // Mediterranean
-  ["#a8342a", "#d4674f"], // balcony red
-  ["#2f6b4f", "#4f9670"], // balcony green
-  ["#8a6d1f", "#d8a629"], // brass and gold
-  ["#5c4a7a", "#8a72ad"], // dusk
-  ["#a35a2b", "#d1874a"], // terracotta
+  ["#153b63", "#2f628f"], // Mediterranean navy
+  ["#5a4632", "#8a6d4b"], // baked earth
+  ["#61754a", "#88a06b"], // olive grove
+  ["#7a3b30", "#b45a45"], // terracotta
+  ["#3c4a56", "#63757f"], // harbour slate
+  ["#6b5578", "#94799f"], // bougainvillea
 ];
 
-/** FNV-1a: small, fast, and stable across runs — unlike hashing by object identity. */
+/** Each family of cuisine gets its own motif, so the pattern carries meaning. */
+type Motif = "arches" | "waves" | "grain" | "vine" | "tiles" | "rays";
+
+const CUISINE_MOTIFS: [RegExp, Motif][] = [
+  [/seafood|fish|sushi/, "waves"],
+  [/pizza|italian|pasta|bakery|ftira|pastizzi|bread/, "grain"],
+  [/wine|bar|tapas|cheese/, "vine"],
+  [/maltese|rabbit|traditional|farm/, "arches"],
+  [/cafe|coffee|cake|pastr|ice ?cream|dessert/, "rays"],
+];
+
+function motifFor(cuisines: string[]): Motif {
+  const joined = cuisines.join(" ").toLowerCase();
+  for (const [pattern, motif] of CUISINE_MOTIFS) {
+    if (pattern.test(joined)) return motif;
+  }
+  return "tiles";
+}
+
+/** FNV-1a: stable across runs, unlike hashing by object identity. */
 function hash(input: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < input.length; i++) {
@@ -31,23 +52,29 @@ function hash(input: string): number {
 
 export function GeneratedCard({
   name,
+  cuisines = [],
   className = "",
+  showInitial = true,
 }: {
   name: string;
+  cuisines?: string[];
   className?: string;
+  showInitial?: boolean;
 }) {
   const h = hash(name);
-  const [dark, light] = PALETTES[h % PALETTES.length];
-  const variant = Math.floor(h / 7) % 4;
-  const rotation = (h % 4) * 15;
+  const [base, light] = PALETTES[h % PALETTES.length];
+  const motif = motifFor(cuisines);
+  const rotation = (h % 3) * 12 - 12;
 
-  // The initial gives an otherwise abstract card something to identify it by.
-  const initial = name.replace(/^(the|il-|is-|ta'|tal-|ir-|l-)\s*/i, "").charAt(0);
+  // Maltese articles are not the identifying letter: Ta' Kris reads as K.
+  const initial =
+    name.replace(/^(the|il-|is-|ir-|ta'|tal-|tas-|l-|id-)\s*/i, "").charAt(0) ||
+    name.charAt(0);
 
   return (
     <div
       className={`relative overflow-hidden ${className}`}
-      style={{ background: dark }}
+      style={{ background: base }}
       aria-hidden="true"
     >
       <svg
@@ -55,44 +82,56 @@ export function GeneratedCard({
         preserveAspectRatio="xMidYMid slice"
         className="absolute inset-0 h-full w-full"
       >
-        <g
-          transform={`rotate(${rotation} 60 60)`}
-          fill={light}
-          fillOpacity="0.55"
-        >
-          {variant === 0 && (
+        <g fill={light} fillOpacity="0.5" transform={`rotate(${rotation} 60 60)`}>
+          {motif === "arches" && (
             <>
-              <circle cx="30" cy="30" r="34" />
-              <circle cx="95" cy="88" r="46" fillOpacity="0.35" />
+              <path d="M8 120V64a26 26 0 0 1 52 0v56Z" />
+              <path d="M66 120V80a20 20 0 0 1 40 0v40Z" fillOpacity="0.32" />
             </>
           )}
-          {variant === 1 && (
+          {motif === "waves" && (
             <>
-              <rect x="-10" y="20" width="140" height="26" />
-              <rect x="-10" y="66" width="140" height="14" fillOpacity="0.4" />
+              <path d="M-10 74c20-14 40 14 60 0s40-14 60 0v56h-120Z" />
+              <path
+                d="M-10 96c20-14 40 14 60 0s40-14 60 0v34h-120Z"
+                fillOpacity="0.34"
+              />
             </>
           )}
-          {variant === 2 && (
+          {motif === "grain" && (
             <>
-              <path d="M0 120 L60 10 L120 120 Z" />
-              <path d="M0 120 L35 55 L70 120 Z" fillOpacity="0.35" />
+              <circle cx="34" cy="40" r="26" />
+              <circle cx="86" cy="84" r="34" fillOpacity="0.3" />
             </>
           )}
-          {variant === 3 && (
+          {motif === "vine" && (
             <>
-              {/* Arches, after the limestone balconies. */}
-              <path d="M10 120 V60 a25 25 0 0 1 50 0 V120 Z" />
-              <path d="M66 120 V78 a20 20 0 0 1 40 0 V120 Z" fillOpacity="0.4" />
+              <path d="M-10 30h140v16h-140Z" />
+              <path d="M-10 68h140v10h-140Z" fillOpacity="0.4" />
+              <path d="M-10 92h140v6h-140Z" fillOpacity="0.28" />
+            </>
+          )}
+          {motif === "tiles" && (
+            <>
+              <rect x="-6" y="-6" width="46" height="46" />
+              <rect x="66" y="66" width="60" height="60" fillOpacity="0.3" />
+              <rect x="66" y="-6" width="46" height="46" fillOpacity="0.18" />
+            </>
+          )}
+          {motif === "rays" && (
+            <>
+              <path d="M60 60 120 0v120Z" />
+              <path d="M60 60 0 12v96Z" fillOpacity="0.3" />
             </>
           )}
         </g>
       </svg>
-      <span
-        className="absolute inset-0 flex items-center justify-center font-display text-5xl font-semibold text-white/85"
-        style={{ textShadow: "0 2px 12px rgba(0,0,0,0.35)" }}
-      >
-        {initial}
-      </span>
+
+      {showInitial && (
+        <span className="display absolute inset-0 flex items-center justify-center text-[2.75rem] text-white/80">
+          {initial}
+        </span>
+      )}
     </div>
   );
 }

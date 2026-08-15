@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
-import { Fraunces, Inter } from "next/font/google";
-import Link from "next/link";
-import { SiteNav } from "@/components/SiteNav";
+import type { Metadata, Viewport } from "next";
+import { Inter, Instrument_Serif } from "next/font/google";
+import { TabBar } from "@/components/TabBar";
+import { TopBar } from "@/components/TopBar";
 import { BRAND } from "@/config/brand";
 import "./globals.css";
 
@@ -10,21 +10,19 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
-// A high-contrast serif for headings: the product this replaces is a printed
-// restaurant guide, and the type should remember that.
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
+// The closest freely available relative of Canela or Editorial New: high
+// contrast, modern, and unmistakably editorial. Restaurant names are set in it.
+const instrument = Instrument_Serif({
+  variable: "--font-instrument",
   subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
 });
 
-// Lowercasing the tagline would also lowercase "Malta", so it is used verbatim.
 const SITE_TITLE = `${BRAND.name} — ${BRAND.tagline}`;
 
 export const metadata: Metadata = {
-  title: {
-    default: SITE_TITLE,
-    template: `%s · ${BRAND.name}`,
-  },
+  title: { default: SITE_TITLE, template: `%s · ${BRAND.name}` },
   description: BRAND.description,
   openGraph: {
     title: SITE_TITLE,
@@ -33,40 +31,31 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#faf8f3" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c0f14" },
+  ],
+  // The log sheet and tab bar assume a stable viewport.
+  maximumScale: 1,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${fraunces.variable} font-sans antialiased`}>
-        <div className="flex min-h-screen flex-col">
-          <SiteNav />
-          <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
-            {children}
-          </main>
-          <footer className="mt-12 border-t px-4 py-6">
-            <div className="mx-auto flex max-w-5xl flex-wrap gap-x-4 gap-y-1 text-xs text-faint">
-              <span>
-                {BRAND.name} — {BRAND.tagline}.
-              </span>
-              {/* ODbL requires visible attribution wherever OSM data appears. */}
-              <span>
-                Restaurant data ©{" "}
-                <a
-                  href="https://www.openstreetmap.org/copyright"
-                  className="underline hover:text-muted"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  OpenStreetMap contributors
-                </a>
-              </span>
-              <Link href="/about" className="underline hover:text-muted">
-                How ratings work
-              </Link>
-            </div>
-          </footer>
-        </div>
+      <body
+        className={`${inter.variable} ${instrument.variable} font-sans antialiased`}
+      >
+        <TopBar />
+
+        {/* Bottom padding clears the floating tab bar on mobile. */}
+        <main className="mx-auto w-full max-w-2xl px-5 pt-6 pb-32 md:pb-16">
+          {children}
+        </main>
+
+        <TabBar />
       </body>
     </html>
   );

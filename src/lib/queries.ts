@@ -239,6 +239,52 @@ export async function getLocalities(supabase: SupabaseClient) {
 }
 
 /**
+ * Per-locality coverage, which is what the completion screen is built from.
+ *
+ * Done in one pass over the catalogue rather than a query per locality: Malta's
+ * whole restaurant list is small enough that fetching it and counting in memory
+ * is faster than 68 round trips, and it keeps the maths readable.
+ */
+export async function getLocalityCoverage(
+  supabase: SupabaseClient,
+  userId: string,
+) {
+  const [{ data: localities }, { data: restaurants }, { data: visits }] =
+    await Promise.all([
+      supabase
+        .from("rl_localities")
+        .select("id, name")
+        .eq("region", ACTIVE_MARKET.key)
+        .order("name"),
+      supabase.from("rl_restaurants").select("id, locality_id"),
+      supabase.from("rl_visits").select("restaurant_id").eq("user_id", userId),
+    ]);
+
+  const visitedIds = new Set(
+    (visits ?? []).map((v) => v.restaurant_id as string),
+  );
+
+  const totals = new Map<string, { total: number; visited: number }>();
+  for (const restaurant of restaurants ?? []) {
+    const localityId = restaurant.locality_id as string | null;
+    if (!localityId) continue;
+    const entry = totals.get(localityId) ?? { total: 0, visited: 0 };
+    entry.total += 1;
+    if (visitedIds.has(restaurant.id as string)) entry.visited += 1;
+    totals.set(localityId, entry);
+  }
+
+  return (localities ?? []).map((locality) => {
+    const entry = totals.get(locality.id as string) ?? { total: 0, visited: 0 };
+    return {
+      id: locality.id as string,
+      name: locality.name as string,
+      ...entry,
+    };
+  });
+}
+
+/**
  * Coverage for the completion map: how much of the catalogue this diner has
  * eaten through. The denominator is the curated set, not every licensed outlet —
  * "87 of 412" only means something if the 412 are places worth going.
