@@ -44,5 +44,8 @@ next-env.d.ts
 /data/*.json
 !/data/.gitkeep
 
-# local env
+# local env — never commit
 .env.local
+
+# Public build-time config (anon key only — safe, see file header)
+!.env.production
