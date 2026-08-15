@@ -25,8 +25,8 @@ export default async function LoginPage({
     <div className="mx-auto max-w-sm py-10">
       <h1 className="font-display text-2xl font-semibold">Sign in</h1>
       <p className="mt-2 text-sm text-muted">
-        {BRAND.name} sends you a link — no password to remember. Use the same
-        address each time and your diary follows you.
+        Use the same email each time and your diary follows you. New to{" "}
+        {BRAND.name}? Pick a password and create an account.
       </p>
 
       {friendly && (

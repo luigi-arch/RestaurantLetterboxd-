@@ -41,7 +41,9 @@ describe("friendlyAuthError", () => {
   it("falls back to something actionable for anything unrecognised", () => {
     const friendly = friendlyAuthError("some novel backend failure 0x21")!;
     expect(friendly.title).toBe("Sign-in did not complete");
-    expect(friendly.detail).toMatch(/request a new one/i);
+    // Always leave a next step, and the password route is the one that does not
+    // depend on email delivery.
+    expect(friendly.detail).toMatch(/try again|password/i);
   });
 
   it("never returns the raw message as the user-facing detail", () => {
@@ -55,5 +57,26 @@ describe("friendlyAuthError", () => {
     for (const raw of rawMessages) {
       expect(friendlyAuthError(raw)!.detail).not.toBe(raw);
     }
+  });
+});
+
+describe("friendlyAuthError — email limits and passwords", () => {
+  it("points at passwords when the email quota is spent", () => {
+    // Supabase's built-in mail service caps at a couple of messages an hour,
+    // and the quota is shared with the other app in this project.
+    const friendly = friendlyAuthError("email rate limit exceeded")!;
+    expect(friendly.title).toBe("Email limit reached");
+    expect(friendly.retryable).toBe(false);
+    expect(friendly.detail).toMatch(/password/i);
+  });
+
+  it.each([
+    ["Invalid login credentials", "That email and password did not match"],
+    ["User already registered", "You already have an account"],
+    ["Password should be at least 6 characters", "That password is too short"],
+    ["Email not confirmed", "Your email is not confirmed yet"],
+    ["Signups not allowed for this instance", "New accounts are turned off"],
+  ])("maps %s", (raw, expectedTitle) => {
+    expect(friendlyAuthError(raw)!.title).toBe(expectedTitle);
   });
 });

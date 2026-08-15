@@ -83,7 +83,23 @@ scale past "friends trying it out".
 **Moving to a dedicated project** is a find-and-replace of `rl_` plus a re-run of
 `supabase/migrations/`. Worth doing before this carries real users.
 
-### Required manual step: auth redirect allow-list
+### Sign-in: passwords first, email second
+
+Password sign-in is the default. Supabase's built-in mail service sends only a
+couple of messages an hour, and that quota belongs to the whole project — shared
+with the other application — so magic links break as soon as a second person
+tries to sign up. Passwords need no email, no redirect allow-list and no PKCE
+verifier.
+
+**One dashboard toggle makes this work end to end:** Authentication → Providers →
+Email → turn **Confirm email** off. Otherwise creating an account still sends a
+confirmation message and hits the same limit. The app handles both cases — with
+confirmation on it says "check your inbox", with it off you are signed in
+immediately — but only the second is usable while the quota is this small.
+
+Re-enable confirmation, or configure custom SMTP, before this faces the public.
+
+### Optional: auth redirect allow-list (magic links only)
 
 Magic-link sign-in does not work until the deployed origins are allowed in
 Supabase → **Authentication → URL Configuration → Redirect URLs**. Add all
