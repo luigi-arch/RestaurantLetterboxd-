@@ -17,14 +17,17 @@ const fraunces = Fraunces({
   subsets: ["latin"],
 });
 
+// Lowercasing the tagline would also lowercase "Malta", so it is used verbatim.
+const SITE_TITLE = `${BRAND.name} — ${BRAND.tagline}`;
+
 export const metadata: Metadata = {
   title: {
-    default: `${BRAND.name} — ${BRAND.tagline.toLowerCase()}`,
+    default: SITE_TITLE,
     template: `%s · ${BRAND.name}`,
   },
   description: BRAND.description,
   openGraph: {
-    title: `${BRAND.name} — ${BRAND.tagline.toLowerCase()}`,
+    title: SITE_TITLE,
     description: BRAND.description,
     type: "website",
   },
@@ -44,7 +47,7 @@ export default function RootLayout({
           <footer className="mt-12 border-t px-4 py-6">
             <div className="mx-auto flex max-w-5xl flex-wrap gap-x-4 gap-y-1 text-xs text-faint">
               <span>
-                {BRAND.name} — {BRAND.tagline.toLowerCase()}.
+                {BRAND.name} — {BRAND.tagline}.
               </span>
               {/* ODbL requires visible attribution wherever OSM data appears. */}
               <span>
