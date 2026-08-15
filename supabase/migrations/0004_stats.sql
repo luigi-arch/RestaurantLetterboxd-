@@ -10,8 +10,8 @@
 -- are precisely the ones people mark private, would be thrown away. A definer
 -- function reads every visit while RLS keeps the underlying rows unreadable.
 
-create table restaurant_stats (
-  restaurant_id     uuid primary key references restaurants (id) on delete cascade,
+create table rl_restaurant_stats (
+  restaurant_id     uuid primary key references rl_restaurants (id) on delete cascade,
   -- Recency-weighted, per-diner-normalised, shrunk toward the market mean.
   -- The headline number on a restaurant page.
   recent_rating     numeric(2, 1),
@@ -27,20 +27,20 @@ create table restaurant_stats (
   computed_at       timestamptz not null default now()
 );
 
-create index restaurant_stats_recent_rating_idx
-  on restaurant_stats (recent_rating desc nulls last);
-create index restaurant_stats_return_rate_idx
-  on restaurant_stats (return_rate desc);
+create index rl_restaurant_stats_recent_rating_idx
+  on rl_restaurant_stats (recent_rating desc nulls last);
+create index rl_restaurant_stats_return_rate_idx
+  on rl_restaurant_stats (return_rate desc);
 
 -- Tunables, kept in one place so the SQL and TS constants can be compared.
-create or replace function scoring_half_life_months() returns numeric
+create or replace function rl_scoring_half_life_months() returns numeric
   language sql immutable as $$ select 15::numeric $$;
-create or replace function scoring_prior_weight() returns numeric
+create or replace function rl_scoring_prior_weight() returns numeric
   language sql immutable as $$ select 5::numeric $$;
-create or replace function scoring_days_per_month() returns numeric
+create or replace function rl_scoring_days_per_month() returns numeric
   language sql immutable as $$ select 30.436875::numeric $$;
 
-create or replace function refresh_restaurant_stats()
+create or replace function rl_refresh_restaurant_stats()
 returns integer
 language plpgsql
 security definer
@@ -54,7 +54,7 @@ begin
   -- Malta actually thinks rather than an arbitrary constant. Falls back to 3.5
   -- before any ratings exist.
   select coalesce(avg(rating), 3.5) into v_prior_mean
-  from visits where rating is not null;
+  from rl_visits where rating is not null;
 
   with weighted as (
     select
@@ -68,10 +68,10 @@ begin
       power(
         0.5,
         greatest(current_date - v.visited_on, 0)::numeric
-          / scoring_days_per_month()
-          / scoring_half_life_months()
+          / rl_scoring_days_per_month()
+          / rl_scoring_half_life_months()
       ) as w
-    from visits v
+    from rl_visits v
   ),
   -- One row per diner per restaurant: every diner counts once however often
   -- they log, so a single enthusiast cannot move the score.
@@ -95,7 +95,7 @@ begin
     select restaurant_id,
            avg(rating) as plain_avg,
            count(*) as total_visits
-    from visits
+    from rl_visits
     group by restaurant_id
   ),
   agg as (
@@ -113,7 +113,7 @@ begin
     from per_diner d
     group by d.restaurant_id
   )
-  insert into restaurant_stats as rs (
+  insert into rl_restaurant_stats as rs (
     restaurant_id, recent_rating, avg_rating, return_rate,
     would_return_pct, visit_count, distinct_diners, computed_at
   )
@@ -122,8 +122,8 @@ begin
     case
       when a.weight_total is null or a.weight_total = 0 then null
       else round(
-        ((a.weighted_sum + v_prior_mean * scoring_prior_weight())
-          / (a.weight_total + scoring_prior_weight())) * 2
+        ((a.weighted_sum + v_prior_mean * rl_scoring_prior_weight())
+          / (a.weight_total + rl_scoring_prior_weight())) * 2
       ) / 2
     end,
     round(r.plain_avg * 2) / 2,
@@ -146,15 +146,15 @@ begin
   get diagnostics v_rows = row_count;
 
   -- Drop stats for restaurants whose last visit was deleted.
-  delete from restaurant_stats s
-  where not exists (select 1 from visits v where v.restaurant_id = s.restaurant_id);
+  delete from rl_restaurant_stats s
+  where not exists (select 1 from rl_visits v where v.restaurant_id = s.restaurant_id);
 
   return v_rows;
 end;
 $$;
 
-comment on function refresh_restaurant_stats() is
-  'Recomputes restaurant_stats from every visit, including private ones. SECURITY DEFINER by design: private visits must feed aggregates without their rows being readable.';
+comment on function rl_refresh_restaurant_stats() is
+  'Recomputes rl_restaurant_stats from every visit, including private ones. SECURITY DEFINER by design: private visits must feed aggregates without their rows being readable.';
 
 -- Only the service role runs the refresh; end users read the resulting table.
-revoke execute on function refresh_restaurant_stats() from public, anon, authenticated;
+revoke execute on function rl_refresh_restaurant_stats() from public, anon, authenticated;

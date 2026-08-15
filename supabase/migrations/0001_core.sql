@@ -16,7 +16,7 @@ create extension if not exists "unaccent";
 -- unaccent alone does not reliably fold ħ/Ħ, so we map the Maltese set explicitly.
 --
 -- IMMUTABLE (not STABLE) so it can be used in an index expression.
-create or replace function mt_normalize(input text)
+create or replace function rl_mt_normalize(input text)
 returns text
 language sql
 immutable
@@ -31,14 +31,14 @@ as $$
   );
 $$;
 
-comment on function mt_normalize(text) is
+comment on function rl_mt_normalize(text) is
   'Lowercases and strips Maltese/Latin diacritics so search works from a plain keyboard.';
 
 -- ---------------------------------------------------------------------------
 -- Localities
 -- ---------------------------------------------------------------------------
 
-create table localities (
+create table rl_localities (
   id          uuid primary key default gen_random_uuid(),
   -- Matches Market.key in src/config/market.ts.
   region      text not null,
@@ -51,15 +51,15 @@ create table localities (
   unique (region, name)
 );
 
-create index localities_region_idx on localities (region);
-create index localities_name_trgm_idx
-  on localities using gin (mt_normalize(name) gin_trgm_ops);
+create index rl_localities_region_idx on rl_localities (region);
+create index rl_localities_name_trgm_idx
+  on rl_localities using gin (rl_mt_normalize(name) gin_trgm_ops);
 
 -- ---------------------------------------------------------------------------
 -- Profiles
 -- ---------------------------------------------------------------------------
 
-create table profiles (
+create table rl_profiles (
   id               uuid primary key references auth.users (id) on delete cascade,
   username         text not null unique,
   display_name     text,
@@ -73,20 +73,20 @@ create table profiles (
   constraint username_format check (username ~ '^[a-z0-9_]{3,24}$')
 );
 
-create index profiles_username_trgm_idx
-  on profiles using gin (mt_normalize(username) gin_trgm_ops);
+create index rl_profiles_username_trgm_idx
+  on rl_profiles using gin (rl_mt_normalize(username) gin_trgm_ops);
 
 -- ---------------------------------------------------------------------------
 -- Restaurants
 -- ---------------------------------------------------------------------------
 
-create type restaurant_status as enum ('open', 'closed', 'unverified');
+create type rl_restaurant_status as enum ('open', 'closed', 'unverified');
 
-create table restaurants (
+create table rl_restaurants (
   id            uuid primary key default gen_random_uuid(),
   slug          text not null unique,
   name          text not null,
-  locality_id   uuid references localities (id) on delete set null,
+  locality_id   uuid references rl_localities (id) on delete set null,
   lat           double precision,
   lng           double precision,
   cuisines      text[] not null default '{}',
@@ -96,7 +96,7 @@ create table restaurants (
   osm_id        text unique,
   phone         text,
   website       text,
-  status        restaurant_status not null default 'unverified',
+  status        rl_restaurant_status not null default 'unverified',
   -- Set by hand during the curation pass; drives the "restaurants that matter"
   -- catalogue used by onboarding and the completion map denominator.
   is_curated    boolean not null default false,
@@ -106,14 +106,14 @@ create table restaurants (
   constraint lng_range check (lng is null or lng between -180 and 180)
 );
 
-create index restaurants_locality_idx on restaurants (locality_id);
-create index restaurants_status_idx on restaurants (status);
-create index restaurants_curated_idx on restaurants (is_curated) where is_curated;
-create index restaurants_name_trgm_idx
-  on restaurants using gin (mt_normalize(name) gin_trgm_ops);
-create index restaurants_geo_idx on restaurants (lat, lng);
+create index rl_restaurants_locality_idx on rl_restaurants (locality_id);
+create index rl_restaurants_status_idx on rl_restaurants (status);
+create index rl_restaurants_curated_idx on rl_restaurants (is_curated) where is_curated;
+create index rl_restaurants_name_trgm_idx
+  on rl_restaurants using gin (rl_mt_normalize(name) gin_trgm_ops);
+create index rl_restaurants_geo_idx on rl_restaurants (lat, lng);
 
-create or replace function touch_updated_at()
+create or replace function rl_touch_updated_at()
 returns trigger
 language plpgsql
 as $$
@@ -124,5 +124,5 @@ end;
 $$;
 
 create trigger restaurants_touch_updated_at
-  before update on restaurants
-  for each row execute function touch_updated_at();
+  before update on rl_restaurants
+  for each row execute function rl_touch_updated_at();

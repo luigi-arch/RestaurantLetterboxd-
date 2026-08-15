@@ -1,26 +1,77 @@
 @import "tailwindcss";
 
+/*
+ * Palette drawn from Malta rather than from Letterboxd: globigerina limestone,
+ * deep Mediterranean blue, and the painted-balcony reds and greens.
+ *
+ * Dark is the primary mode — logging a meal happens at a table, in the evening,
+ * on a phone.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ink: #12100e;
+  --ink-soft: #1c1917;
+  --ink-raised: #262220;
+  --limestone: #e8dfd0;
+  --limestone-dim: #b8ab97;
+  --limestone-faint: #6b6256;
+  --sea: #1e6f8c;
+  --sea-bright: #35a0c4;
+  --balcony-red: #a8342a;
+  --balcony-green: #2f6b4f;
+  --gold: #d8a629;
+
+  --background: var(--ink);
+  --surface: var(--ink-soft);
+  --surface-raised: var(--ink-raised);
+  --foreground: var(--limestone);
+  --muted: var(--limestone-dim);
+  --faint: var(--limestone-faint);
+  --accent: var(--sea-bright);
+  --border: #302b28;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --background: #f7f2e9;
+    --surface: #fffdf9;
+    --surface-raised: #ffffff;
+    --foreground: #1c1917;
+    --muted: #5d5348;
+    --faint: #8b8073;
+    --accent: var(--sea);
+    --border: #ddd2be;
+  }
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-border-subtle: var(--border);
+  --color-gold: var(--gold);
+  --color-balcony-red: var(--balcony-red);
+  --color-balcony-green: var(--balcony-green);
+  --color-sea: var(--sea);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--border);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Numerals in stats should line up in columns. */
+.tabular {
+  font-variant-numeric: tabular-nums;
 }

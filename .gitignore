@@ -43,3 +43,6 @@ next-env.d.ts
 # local data artefacts
 /data/*.json
 !/data/.gitkeep
+
+# local env
+.env.local

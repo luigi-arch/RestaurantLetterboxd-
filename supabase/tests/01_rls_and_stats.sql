@@ -19,18 +19,24 @@ begin;
 insert into auth.users (id, email) values
   ('11111111-1111-1111-1111-111111111111', 'alice@example.com'),
   ('22222222-2222-2222-2222-222222222222', 'bob@example.com');
--- Profiles are created by the on_auth_user_created trigger.
 
-insert into localities (id, region, name) values
+-- Profiles are created lazily by rl_ensure_profile() rather than by a trigger
+-- on auth.users; section 6 exercises that. Seeded directly here so the RLS
+-- assertions below have something to hang off.
+insert into rl_profiles (id, username) values
+  ('11111111-1111-1111-1111-111111111111', 'alice'),
+  ('22222222-2222-2222-2222-222222222222', 'bob');
+
+insert into rl_localities (id, region, name) values
   ('aaaaaaaa-0000-0000-0000-000000000001', 'malta', 'Valletta');
 
-insert into restaurants (id, slug, name, locality_id, status, is_curated) values
+insert into rl_restaurants (id, slug, name, locality_id, status, is_curated) values
   ('bbbbbbbb-0000-0000-0000-000000000001', 'test-kitchen', 'Test Kitchen',
    'aaaaaaaa-0000-0000-0000-000000000001', 'open', true);
 
 -- Alice: one public visit (4.0) and one private visit (2.0). The private one is
 -- the candid rating — exactly the kind that must survive into the aggregate.
-insert into visits (user_id, restaurant_id, visited_on, rating, would_return, is_public) values
+insert into rl_visits (user_id, restaurant_id, visited_on, rating, would_return, is_public) values
   ('11111111-1111-1111-1111-111111111111', 'bbbbbbbb-0000-0000-0000-000000000001',
    current_date, 4.0, true, true),
   ('22222222-2222-2222-2222-222222222222', 'bbbbbbbb-0000-0000-0000-000000000001',
@@ -46,12 +52,12 @@ set local "request.jwt.claim.sub" = '11111111-1111-1111-1111-111111111111';
 do $$
 declare n integer;
 begin
-  select count(*) into n from visits;
+  select count(*) into n from rl_visits;
   if n <> 1 then
     raise exception 'RLS LEAK: Alice sees % visits, expected 1 (her own public one)', n;
   end if;
 
-  select count(*) into n from visits where rating = 2.0;
+  select count(*) into n from rl_visits where rating = 2.0;
   if n <> 0 then
     raise exception 'RLS LEAK: Alice can read Bob''s private visit';
   end if;
@@ -64,7 +70,7 @@ set local "request.jwt.claim.sub" = '22222222-2222-2222-2222-222222222222';
 do $$
 declare n integer;
 begin
-  select count(*) into n from visits;
+  select count(*) into n from rl_visits;
   if n <> 2 then
     raise exception 'OWNERSHIP BROKEN: Bob sees % visits, expected 2', n;
   end if;
@@ -79,7 +85,7 @@ set local "request.jwt.claim.sub" = '';
 do $$
 declare n integer;
 begin
-  select count(*) into n from visits;
+  select count(*) into n from rl_visits;
   if n <> 1 then
     raise exception 'RLS LEAK: anonymous visitor sees % visits, expected 1', n;
   end if;
@@ -91,12 +97,12 @@ $$;
 -- ---------------------------------------------------------------------------
 
 reset role;
-select refresh_restaurant_stats();
+select rl_refresh_restaurant_stats();
 
 do $$
 declare s record;
 begin
-  select * into s from restaurant_stats
+  select * into s from rl_restaurant_stats
   where restaurant_id = 'bbbbbbbb-0000-0000-0000-000000000001';
 
   if s.visit_count <> 2 then
@@ -134,7 +140,7 @@ set local role anon;
 do $$
 declare n integer;
 begin
-  select visit_count into n from restaurant_stats
+  select visit_count into n from rl_restaurant_stats
   where restaurant_id = 'bbbbbbbb-0000-0000-0000-000000000001';
   if n <> 2 then
     raise exception 'anon should read aggregates including private visits, got %', n;
@@ -147,16 +153,16 @@ reset role;
 -- 3. Return rate reacts to a second visit
 -- ---------------------------------------------------------------------------
 
-insert into visits (user_id, restaurant_id, visited_on, rating, would_return, is_public)
+insert into rl_visits (user_id, restaurant_id, visited_on, rating, would_return, is_public)
 values ('11111111-1111-1111-1111-111111111111', 'bbbbbbbb-0000-0000-0000-000000000001',
         current_date - 30, 4.5, true, true);
 
-select refresh_restaurant_stats();
+select rl_refresh_restaurant_stats();
 
 do $$
 declare s record;
 begin
-  select * into s from restaurant_stats
+  select * into s from rl_restaurant_stats
   where restaurant_id = 'bbbbbbbb-0000-0000-0000-000000000001';
 
   -- One of two diners has now returned.
@@ -181,7 +187,7 @@ do $$
 begin
   -- would_return is the one field nobody may skip.
   begin
-    insert into visits (user_id, restaurant_id, visited_on, rating, would_return)
+    insert into rl_visits (user_id, restaurant_id, visited_on, rating, would_return)
     values ('11111111-1111-1111-1111-111111111111',
             'bbbbbbbb-0000-0000-0000-000000000001', current_date, 4.0, null);
     raise exception 'CONSTRAINT MISSING: would_return accepted null';
@@ -190,7 +196,7 @@ begin
 
   -- Quarter stars are not a thing.
   begin
-    insert into visits (user_id, restaurant_id, visited_on, rating, would_return)
+    insert into rl_visits (user_id, restaurant_id, visited_on, rating, would_return)
     values ('11111111-1111-1111-1111-111111111111',
             'bbbbbbbb-0000-0000-0000-000000000001', current_date, 4.25, true);
     raise exception 'CONSTRAINT MISSING: quarter-star rating accepted';
@@ -199,7 +205,7 @@ begin
 
   -- A meal cannot have happened next year.
   begin
-    insert into visits (user_id, restaurant_id, visited_on, rating, would_return)
+    insert into rl_visits (user_id, restaurant_id, visited_on, rating, would_return)
     values ('11111111-1111-1111-1111-111111111111',
             'bbbbbbbb-0000-0000-0000-000000000001', current_date + 400, 5.0, true);
     raise exception 'CONSTRAINT MISSING: future-dated visit accepted';
@@ -210,7 +216,7 @@ begin
   -- exists in the Maps Platform terms, so this is enforced in the database
   -- rather than left to code review.
   begin
-    insert into restaurant_images (restaurant_id, source, storage_path)
+    insert into rl_restaurant_images (restaurant_id, source, storage_path)
     values ('bbbbbbbb-0000-0000-0000-000000000001', 'google_places', 'images/leak.jpg');
     raise exception 'CONSTRAINT MISSING: a Google Places photo was stored';
   exception when check_violation then null;
@@ -218,15 +224,15 @@ begin
 
   -- Sources we may keep must actually carry a stored path.
   begin
-    insert into restaurant_images (restaurant_id, source, storage_path)
+    insert into rl_restaurant_images (restaurant_id, source, storage_path)
     values ('bbbbbbbb-0000-0000-0000-000000000001', 'site_og', null);
     raise exception 'CONSTRAINT MISSING: storable image accepted without a path';
   exception when check_violation then null;
   end;
 
-  -- Nobody follows themselves.
+  -- Nobody rl_follows themselves.
   begin
-    insert into follows (follower_id, followee_id)
+    insert into rl_follows (follower_id, followee_id)
     values ('11111111-1111-1111-1111-111111111111',
             '11111111-1111-1111-1111-111111111111');
     raise exception 'CONSTRAINT MISSING: self-follow accepted';
@@ -241,50 +247,79 @@ $$;
 
 do $$
 begin
-  if mt_normalize('Għajnsielem') <> 'ghajnsielem' then
-    raise exception 'mt_normalize failed on Għajnsielem: %', mt_normalize('Għajnsielem');
+  if rl_mt_normalize('Għajnsielem') <> 'ghajnsielem' then
+    raise exception 'rl_mt_normalize failed on Għajnsielem: %', rl_mt_normalize('Għajnsielem');
   end if;
-  if mt_normalize('Ħamrun') <> 'hamrun' then
-    raise exception 'mt_normalize failed on Ħamrun: %', mt_normalize('Ħamrun');
+  if rl_mt_normalize('Ħamrun') <> 'hamrun' then
+    raise exception 'rl_mt_normalize failed on Ħamrun: %', rl_mt_normalize('Ħamrun');
   end if;
-  if mt_normalize('Ta'' Ċenċ') <> 'ta'' cenc' then
-    raise exception 'mt_normalize failed on Ta'' Ċenċ: %', mt_normalize('Ta'' Ċenċ');
+  if rl_mt_normalize('Ta'' Ċenċ') <> 'ta'' cenc' then
+    raise exception 'rl_mt_normalize failed on Ta'' Ċenċ: %', rl_mt_normalize('Ta'' Ċenċ');
   end if;
-  if mt_normalize('Żebbuġ') <> 'zebbug' then
-    raise exception 'mt_normalize failed on Żebbuġ: %', mt_normalize('Żebbuġ');
+  if rl_mt_normalize('Żebbuġ') <> 'zebbug' then
+    raise exception 'rl_mt_normalize failed on Żebbuġ: %', rl_mt_normalize('Żebbuġ');
   end if;
 end
 $$;
 
 -- ---------------------------------------------------------------------------
--- 6. Auto-created profiles
+-- 6. Lazy profile creation
 -- ---------------------------------------------------------------------------
+--
+-- rl_ensure_profile() replaces what would otherwise be a trigger on auth.users.
+-- That matters because this app shares a Supabase project with an unrelated
+-- production system, where a throwing trigger would abort that system's signups.
 
-do $$
-declare u text;
-begin
-  select username into u from profiles
-  where id = '11111111-1111-1111-1111-111111111111';
-  if u <> 'alice' then
-    raise exception 'expected username alice, got %', u;
-  end if;
-end
-$$;
-
--- Colliding email local parts must not break signup.
 insert into auth.users (id, email)
 values ('33333333-3333-3333-3333-333333333333', 'alice@other.com');
 
+set local role authenticated;
+set local "request.jwt.claim.sub" = '33333333-3333-3333-3333-333333333333';
+
 do $$
 declare u text;
 begin
-  select username into u from profiles
-  where id = '33333333-3333-3333-3333-333333333333';
+  -- Colliding email local parts must de-collide rather than fail.
+  select (rl_ensure_profile()).username into u;
   if u <> 'alice1' then
     raise exception 'expected de-colliding username alice1, got %', u;
   end if;
 end
 $$;
+
+do $$
+declare n integer;
+begin
+  -- Calling it twice must be a no-op, not a duplicate-key error: the app calls
+  -- it on every authenticated request that needs a profile.
+  perform rl_ensure_profile();
+  perform rl_ensure_profile('Alice Two');
+  select count(*) into n from rl_profiles
+  where id = '33333333-3333-3333-3333-333333333333';
+  if n <> 1 then
+    raise exception 'rl_ensure_profile is not idempotent: % rows', n;
+  end if;
+end
+$$;
+
+-- Resetting the role is not enough: the JWT claim is transaction-scoped and
+-- would still identify a caller, so clear it explicitly to be genuinely anonymous.
+set local role anon;
+set local "request.jwt.claim.sub" = '';
+
+do $$
+begin
+  -- Without a session there is nobody to create a profile for.
+  begin
+    perform rl_ensure_profile();
+    raise exception 'rl_ensure_profile should reject an anonymous caller';
+  exception when raise_exception then
+    if sqlerrm not like '%requires an authenticated caller%' then raise; end if;
+  end;
+end
+$$;
+
+reset role;
 
 rollback;
 

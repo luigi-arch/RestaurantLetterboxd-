@@ -5,7 +5,7 @@
 -- by `source` rather than a forensic audit. This is cheap now and expensive to
 -- retrofit, which is why it exists before the first image is fetched.
 
-create type image_source as enum (
+create type rl_image_source as enum (
   -- Tier 1: og:image / twitter:image / JSON-LD from the restaurant's own site.
   -- Metadata published specifically so third parties can render link previews.
   'site_og',
@@ -15,14 +15,14 @@ create type image_source as enum (
   'google_places',
   -- Tier 4: uploaded by the restaurant via the claim flow.
   'owner',
-  -- Tier 5: a diner's photo, promoted from visit_photos.
+  -- Tier 5: a diner's photo, promoted from rl_visit_photos.
   'user'
 );
 
-create table restaurant_images (
+create table rl_restaurant_images (
   id               uuid primary key default gen_random_uuid(),
-  restaurant_id    uuid not null references restaurants (id) on delete cascade,
-  source           image_source not null,
+  restaurant_id    uuid not null references rl_restaurants (id) on delete cascade,
+  source           rl_image_source not null,
   -- Path in Supabase Storage. Null for sources we are not permitted to store.
   storage_path     text,
   -- Where it came from: page URL, Commons file URL, or Places photo reference.
@@ -47,14 +47,14 @@ create table restaurant_images (
     check (source = 'google_places' or storage_path is not null)
 );
 
-create index restaurant_images_restaurant_idx on restaurant_images (restaurant_id);
-create index restaurant_images_source_idx on restaurant_images (source);
+create index rl_restaurant_images_restaurant_idx on rl_restaurant_images (restaurant_id);
+create index rl_restaurant_images_source_idx on rl_restaurant_images (source);
 -- Re-crawl scheduling: Tier 1 images go stale when a restaurant redesigns or
 -- its domain lapses into a parked page.
-create index restaurant_images_fetched_idx on restaurant_images (fetched_at)
+create index rl_restaurant_images_fetched_idx on rl_restaurant_images (fetched_at)
   where source = 'site_og';
 
 -- At most one primary image per restaurant.
-create unique index restaurant_images_one_primary_idx
-  on restaurant_images (restaurant_id)
+create unique index rl_restaurant_images_one_primary_idx
+  on rl_restaurant_images (restaurant_id)
   where is_primary;

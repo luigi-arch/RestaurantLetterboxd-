@@ -8,10 +8,10 @@
 -- Visits
 -- ---------------------------------------------------------------------------
 
-create table visits (
+create table rl_visits (
   id             uuid primary key default gen_random_uuid(),
-  user_id        uuid not null references profiles (id) on delete cascade,
-  restaurant_id  uuid not null references restaurants (id) on delete cascade,
+  user_id        uuid not null references rl_profiles (id) on delete cascade,
+  restaurant_id  uuid not null references rl_restaurants (id) on delete cascade,
   -- The date of the meal, not when it was logged. Backfilling old meals during
   -- onboarding depends on these being different things.
   visited_on     date not null,
@@ -36,33 +36,33 @@ create table visits (
   constraint visited_on_not_future check (visited_on <= (now() at time zone 'utc')::date + 1)
 );
 
-create index visits_user_idx on visits (user_id, visited_on desc);
-create index visits_restaurant_idx on visits (restaurant_id, visited_on desc);
-create index visits_public_feed_idx on visits (created_at desc) where is_public;
+create index rl_visits_user_idx on rl_visits (user_id, visited_on desc);
+create index rl_visits_restaurant_idx on rl_visits (restaurant_id, visited_on desc);
+create index rl_visits_public_feed_idx on rl_visits (created_at desc) where is_public;
 -- Supports "have I been here?" lookups on the completion map.
-create index visits_user_restaurant_idx on visits (user_id, restaurant_id);
+create index rl_visits_user_restaurant_idx on rl_visits (user_id, restaurant_id);
 
 create trigger visits_touch_updated_at
-  before update on visits
-  for each row execute function touch_updated_at();
+  before update on rl_visits
+  for each row execute function rl_touch_updated_at();
 
-create table visit_photos (
+create table rl_visit_photos (
   id           uuid primary key default gen_random_uuid(),
-  visit_id     uuid not null references visits (id) on delete cascade,
+  visit_id     uuid not null references rl_visits (id) on delete cascade,
   storage_path text not null,
   position     smallint not null default 0,
   created_at   timestamptz not null default now()
 );
 
-create index visit_photos_visit_idx on visit_photos (visit_id, position);
+create index rl_visit_photos_visit_idx on rl_visit_photos (visit_id, position);
 
 -- ---------------------------------------------------------------------------
 -- Lists — the acquisition channel
 -- ---------------------------------------------------------------------------
 
-create table lists (
+create table rl_lists (
   id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null references profiles (id) on delete cascade,
+  user_id     uuid not null references rl_profiles (id) on delete cascade,
   slug        text not null,
   title       text not null,
   description text,
@@ -74,16 +74,16 @@ create table lists (
   unique (user_id, slug)
 );
 
-create index lists_public_idx on lists (updated_at desc) where is_public;
+create index rl_lists_public_idx on rl_lists (updated_at desc) where is_public;
 
 create trigger lists_touch_updated_at
-  before update on lists
-  for each row execute function touch_updated_at();
+  before update on rl_lists
+  for each row execute function rl_touch_updated_at();
 
-create table list_items (
+create table rl_list_items (
   id            uuid primary key default gen_random_uuid(),
-  list_id       uuid not null references lists (id) on delete cascade,
-  restaurant_id uuid not null references restaurants (id) on delete cascade,
+  list_id       uuid not null references rl_lists (id) on delete cascade,
+  restaurant_id uuid not null references rl_restaurants (id) on delete cascade,
   position      integer not null default 0,
   note          text,
   created_at    timestamptz not null default now(),
@@ -91,19 +91,19 @@ create table list_items (
   unique (list_id, restaurant_id)
 );
 
-create index list_items_list_idx on list_items (list_id, position);
+create index rl_list_items_list_idx on rl_list_items (list_id, position);
 
 -- ---------------------------------------------------------------------------
 -- Follows
 -- ---------------------------------------------------------------------------
 
-create table follows (
-  follower_id uuid not null references profiles (id) on delete cascade,
-  followee_id uuid not null references profiles (id) on delete cascade,
+create table rl_follows (
+  follower_id uuid not null references rl_profiles (id) on delete cascade,
+  followee_id uuid not null references rl_profiles (id) on delete cascade,
   created_at  timestamptz not null default now(),
   primary key (follower_id, followee_id),
   constraint no_self_follow check (follower_id <> followee_id)
 );
 
 -- Reverse lookup: "who follows me".
-create index follows_followee_idx on follows (followee_id);
+create index rl_follows_followee_idx on rl_follows (followee_id);
