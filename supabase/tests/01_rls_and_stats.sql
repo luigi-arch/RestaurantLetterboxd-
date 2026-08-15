@@ -230,6 +230,28 @@ begin
   exception when check_violation then null;
   end;
 
+  -- Demo placeholders are remote by definition. Storing one would make 'demo'
+  -- a hole in the provenance rules that anything could be filed under.
+  begin
+    insert into rl_restaurant_images (restaurant_id, source, storage_path, source_url)
+    values ('bbbbbbbb-0000-0000-0000-000000000001', 'demo', 'images/x.jpg',
+            'https://example.invalid/x.jpg');
+    raise exception 'CONSTRAINT MISSING: a demo image was stored locally';
+  exception when check_violation then null;
+  end;
+
+  begin
+    insert into rl_restaurant_images (restaurant_id, source, storage_path, source_url)
+    values ('bbbbbbbb-0000-0000-0000-000000000001', 'demo', null, null);
+    raise exception 'CONSTRAINT MISSING: demo image accepted with no source url';
+  exception when check_violation then null;
+  end;
+
+  -- ...and the legitimate shape is accepted.
+  insert into rl_restaurant_images (restaurant_id, source, storage_path, source_url)
+  values ('bbbbbbbb-0000-0000-0000-000000000001', 'demo', null,
+          'https://example.invalid/photo.jpg');
+
   -- Nobody rl_follows themselves.
   begin
     insert into rl_follows (follower_id, followee_id)
