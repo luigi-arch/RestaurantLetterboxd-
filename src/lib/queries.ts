@@ -14,15 +14,21 @@ const RESTAURANT_SELECT = `
     recent_rating, avg_rating, return_rate, would_return_pct,
     visit_count, distinct_diners
   ),
-  images:rl_restaurant_images ( storage_path, attribution_html, is_primary )
+  images:rl_restaurant_images ( source, storage_path, source_url, attribution_html, is_primary )
 `;
+
+type RawImage = {
+  source: string;
+  storage_path: string | null;
+  source_url: string | null;
+  attribution_html: string | null;
+  is_primary: boolean;
+};
 
 type RawRestaurant = Omit<Restaurant, "locality" | "stats" | "image"> & {
   locality: { id: string; name: string } | { id: string; name: string }[] | null;
   stats: Restaurant["stats"] | Restaurant["stats"][] | null;
-  images:
-    | { storage_path: string | null; attribution_html: string | null; is_primary: boolean }[]
-    | null;
+  images: RawImage[] | null;
 };
 
 /** Postgrest returns embedded rows as arrays or objects depending on cardinality. */
@@ -36,10 +42,24 @@ function publicImageUrl(storagePath: string): string {
   return `${base}/storage/v1/object/public/rl-restaurant-images/${storagePath}`;
 }
 
+/**
+ * Resolves an image row to a URL. Demo rows are remote placeholders we do not
+ * hold, so they carry a source_url and no storage path; every other source is a
+ * file in our own bucket.
+ */
+function imageUrlFor(image: RawImage): string | null {
+  if (image.source === "demo") return image.source_url;
+  return image.storage_path ? publicImageUrl(image.storage_path) : null;
+}
+
 function shapeRestaurant(row: RawRestaurant): Restaurant {
+  const usable = (row.images ?? []).filter((i) => imageUrlFor(i) !== null);
+  // A real photo always beats a placeholder, whatever is_primary says.
   const primary =
-    row.images?.find((i) => i.is_primary && i.storage_path) ??
-    row.images?.find((i) => i.storage_path) ??
+    usable.find((i) => i.is_primary && i.source !== "demo") ??
+    usable.find((i) => i.source !== "demo") ??
+    usable.find((i) => i.is_primary) ??
+    usable[0] ??
     null;
 
   return {
@@ -55,10 +75,11 @@ function shapeRestaurant(row: RawRestaurant): Restaurant {
     lng: row.lng,
     locality: first(row.locality),
     stats: first(row.stats),
-    image: primary?.storage_path
+    image: primary
       ? {
-          url: publicImageUrl(primary.storage_path),
+          url: imageUrlFor(primary)!,
           attribution_html: primary.attribution_html,
+          isPlaceholder: primary.source === "demo",
         }
       : null,
   };
@@ -142,9 +163,13 @@ export async function getRestaurantBySlug(
 }
 
 const VISIT_SELECT = `
-  id, visited_on, rating, would_return, note, price_per_head, is_public, created_at,
+  id, visited_on, rating, would_return, note, price_per_head, occasion, is_public, created_at,
   diner:rl_profiles ( username, display_name ),
-  restaurant:rl_restaurants ( slug, name, locality:rl_localities ( name ) )
+  restaurant:rl_restaurants (
+    slug, name, cuisines,
+    locality:rl_localities ( name ),
+    images:rl_restaurant_images ( source, storage_path, source_url, attribution_html, is_primary )
+  )
 `;
 
 type RawVisit = Omit<Visit, "diner" | "restaurant"> & {
@@ -156,8 +181,18 @@ function shapeVisit(row: RawVisit): Visit {
   const restaurant = first(row.restaurant) as {
     slug: string;
     name: string;
+    cuisines: string[] | null;
     locality: { name: string } | { name: string }[] | null;
+    images: RawImage[] | null;
   };
+
+  const usable = (restaurant.images ?? []).filter((i) => imageUrlFor(i) !== null);
+  const primary =
+    usable.find((i) => i.is_primary && i.source !== "demo") ??
+    usable.find((i) => i.source !== "demo") ??
+    usable.find((i) => i.is_primary) ??
+    usable[0] ??
+    null;
 
   return {
     id: row.id,
@@ -166,13 +201,22 @@ function shapeVisit(row: RawVisit): Visit {
     would_return: row.would_return,
     note: row.note,
     price_per_head: row.price_per_head,
+    occasion: row.occasion,
     is_public: row.is_public,
     created_at: row.created_at,
     diner: first(row.diner),
     restaurant: {
       slug: restaurant.slug,
       name: restaurant.name,
+      cuisines: restaurant.cuisines ?? [],
       locality: first(restaurant.locality),
+      image: primary
+        ? {
+            url: imageUrlFor(primary)!,
+            attribution_html: primary.attribution_html,
+            isPlaceholder: primary.source === "demo",
+          }
+        : null,
     },
   };
 }
@@ -225,6 +269,85 @@ export async function getRecentVisits(
 
   if (error) throw error;
   return (data as unknown as RawVisit[]).map(shapeVisit);
+}
+
+/**
+ * How many public visits were logged in the last week.
+ *
+ * Lives here rather than being derived in the page because reading the clock
+ * during render is impure — the same component could produce two different
+ * numbers on two renders.
+ */
+export async function countVisitsThisWeek(
+  supabase: SupabaseClient,
+): Promise<number> {
+  const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const { count } = await supabase
+    .from("rl_visits")
+    .select("id", { count: "exact", head: true })
+    .eq("is_public", true)
+    .gte("created_at", since);
+  return count ?? 0;
+}
+
+/**
+ * Hot this week: restaurants people are logging right now.
+ *
+ * Counts distinct diners in the last seven days rather than raw visits, so one
+ * person logging four times does not manufacture a trend — the same
+ * per-diner rule the ratings use. Returns the count alongside each restaurant so
+ * the UI can say why it is hot.
+ */
+export async function getHotThisWeek(
+  supabase: SupabaseClient,
+  limit = 10,
+): Promise<{ restaurant: Restaurant; diners: number }[]> {
+  const since = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+
+  const { data: recent, error } = await supabase
+    .from("rl_visits")
+    .select("restaurant_id, user_id")
+    .gte("visited_on", since);
+
+  if (error) throw error;
+
+  const dinersByRestaurant = new Map<string, Set<string>>();
+  for (const row of recent ?? []) {
+    const id = row.restaurant_id as string;
+    const set = dinersByRestaurant.get(id) ?? new Set<string>();
+    set.add(row.user_id as string);
+    dinersByRestaurant.set(id, set);
+  }
+
+  const ranked = [...dinersByRestaurant.entries()]
+    .map(([id, diners]) => ({ id, count: diners.size }))
+    // Two people is a coincidence, not a trend.
+    .filter((entry) => entry.count >= 2)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+
+  if (ranked.length === 0) return [];
+
+  const { data, error: fetchError } = await supabase
+    .from("rl_restaurants")
+    .select(RESTAURANT_SELECT)
+    .in(
+      "id",
+      ranked.map((entry) => entry.id),
+    );
+
+  if (fetchError) throw fetchError;
+
+  const byId = new Map(
+    (data as unknown as RawRestaurant[]).map((row) => [row.id, shapeRestaurant(row)]),
+  );
+
+  return ranked
+    .map((entry) => {
+      const restaurant = byId.get(entry.id);
+      return restaurant ? { restaurant, diners: entry.count } : null;
+    })
+    .filter((entry): entry is { restaurant: Restaurant; diners: number } => entry !== null);
 }
 
 export async function getLocalities(supabase: SupabaseClient) {

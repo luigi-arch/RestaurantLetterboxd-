@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ActivityCard, type Activity } from "@/components/ActivityCard";
 import { BRAND } from "@/config/brand";
-import { getRecentVisits } from "@/lib/queries";
+import { countVisitsThisWeek, getRecentVisits } from "@/lib/queries";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -9,8 +9,9 @@ export const dynamic = "force-dynamic";
 export default async function FeedPage() {
   const supabase = await createClient();
 
-  const [visits, { data: auth }] = await Promise.all([
+  const [visits, thisWeek, { data: auth }] = await Promise.all([
     getRecentVisits(supabase, 40),
+    countVisitsThisWeek(supabase),
     supabase.auth.getUser(),
   ]);
 
@@ -21,8 +22,13 @@ export default async function FeedPage() {
 
   return (
     <div>
-      <header className="mb-2">
+      <header className="mb-2 flex items-baseline justify-between">
         <h1 className="label">Recently</h1>
+        {thisWeek > 0 && (
+          <span className="text-[11px] text-faint">
+            🔥 {thisWeek} logged this week
+          </span>
+        )}
       </header>
 
       {activities.length === 0 ? (

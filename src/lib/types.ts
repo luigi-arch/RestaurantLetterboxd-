@@ -28,7 +28,12 @@ export type Restaurant = {
   lng: number | null;
   locality: Pick<Locality, "id" | "name"> | null;
   stats: RestaurantStats | null;
-  image: { url: string; attribution_html: string | null } | null;
+  image: {
+    url: string;
+    attribution_html: string | null;
+    /** True for stock placeholders, which must be labelled as not this restaurant. */
+    isPlaceholder: boolean;
+  } | null;
 };
 
 export type Visit = {
@@ -38,10 +43,11 @@ export type Visit = {
   would_return: boolean;
   note: string | null;
   price_per_head: number | null;
+  occasion: string | null;
   is_public: boolean;
   created_at: string;
   diner: { username: string; display_name: string | null } | null;
-  restaurant: Pick<Restaurant, "slug" | "name"> & {
+  restaurant: Pick<Restaurant, "slug" | "name" | "cuisines" | "image"> & {
     locality: { name: string } | null;
   };
 };

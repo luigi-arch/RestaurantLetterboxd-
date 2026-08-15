@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { StarPicker } from "@/components/StarPicker";
+import { OCCASIONS } from "@/lib/cuisine";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -23,8 +24,6 @@ type Props = {
   onClose: () => void;
   onSaved?: () => void;
 };
-
-const OCCASIONS = ["Date night", "Family", "Lunch", "With friends", "Solo", "Work"];
 
 export function LogSheet({
   restaurantId,
@@ -233,20 +232,20 @@ export function LogSheet({
                   <div>
                     <p className="label mb-2">Occasion</p>
                     <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5">
-                      {OCCASIONS.map((option) => (
+                      {OCCASIONS.map(({ label, emoji }) => (
                         <button
-                          key={option}
+                          key={label}
                           type="button"
                           onClick={() =>
-                            setOccasion(occasion === option ? null : option)
+                            setOccasion(occasion === label ? null : label)
                           }
                           className={`press shrink-0 rounded-full border px-3.5 py-1.5 text-sm ${
-                            occasion === option
+                            occasion === label
                               ? "border-accent bg-accent/10 text-accent"
                               : "text-dim"
                           }`}
                         >
-                          {option}
+                          {emoji} {label}
                         </button>
                       ))}
                     </div>
@@ -307,7 +306,7 @@ function SavedConfirmation({ restaurantName }: { restaurantName: string }) {
       </span>
 
       <h2 className="display mt-5 text-3xl">{restaurantName}</h2>
-      <p className="mt-2 text-dim">Added to your diary.</p>
+      <p className="mt-2 text-dim">Added to your diary ✨</p>
       <p className="mt-1 text-sm text-faint">One more filled in on your map.</p>
     </div>
   );

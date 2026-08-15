@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { DiscoverSearch } from "@/components/DiscoverSearch";
 import { RestaurantTile } from "@/components/RestaurantTile";
-import { browseRestaurants } from "@/lib/queries";
+import { browseRestaurants, getHotThisWeek } from "@/lib/queries";
 import { createClient } from "@/lib/supabase/server";
 import type { Restaurant } from "@/lib/types";
 
@@ -27,8 +27,8 @@ const matchesCuisine = (r: Restaurant, pattern: RegExp) =>
 
 const RAILS: Rail[] = [
   {
-    title: "Highest rated",
-    note: "By recent rating, weighted to the last 15 months",
+    title: "⭐ Highest rated",
+    note: "Weighted to the last 15 months",
     pick: (all) =>
       all
         .filter((r) => r.stats?.recent_rating != null)
@@ -37,7 +37,7 @@ const RAILS: Rail[] = [
         ),
   },
   {
-    title: "Most returned to",
+    title: "🔁 Most returned to",
     note: "The share of diners who came back",
     pick: (all) =>
       all
@@ -45,29 +45,29 @@ const RAILS: Rail[] = [
         .sort((a, b) => (b.stats?.return_rate ?? 0) - (a.stats?.return_rate ?? 0)),
   },
   {
-    title: "Maltese kitchens",
+    title: "🇲🇹 Maltese kitchens",
     pick: (all) => all.filter((r) => matchesCuisine(r, /maltese|rabbit|ftira|farm/)),
   },
   {
-    title: "Seafood",
+    title: "🐟 Straight off the boat",
     pick: (all) => all.filter((r) => matchesCuisine(r, /seafood|fish/)),
   },
   {
-    title: "Pizza and pasta",
+    title: "🍕 Pizza and pasta",
     pick: (all) => all.filter((r) => matchesCuisine(r, /pizza|italian|pasta/)),
   },
   {
-    title: "Worth the occasion",
+    title: "✨ Worth the occasion",
     note: "€€€€",
     pick: (all) => all.filter((r) => r.price_band === 4),
   },
   {
-    title: "Cheap and cheerful",
+    title: "🥙 Cheap and cheerful",
     note: "€ and €€",
     pick: (all) => all.filter((r) => (r.price_band ?? 9) <= 2),
   },
   {
-    title: "Over in Gozo",
+    title: "⛴️ Over in Gozo",
     pick: (all) =>
       all.filter((r) =>
         /victoria|xagħra|xewkija|nadur|munxar|għarb|għasri|kerċem|qala|sannat|fontana|għajnsielem|san lawrenz|żebbuġ għawdex/i.test(
@@ -76,14 +76,17 @@ const RAILS: Rail[] = [
       ),
   },
   {
-    title: "Cafés and bakeries",
+    title: "☕ Cafés and bakeries",
     pick: (all) => all.filter((r) => matchesCuisine(r, /cafe|pastr|cake|pastizzi|bread/)),
   },
 ];
 
 export default async function DiscoverPage() {
   const supabase = await createClient();
-  const all = await browseRestaurants(supabase, { sort: "name", limit: 500 });
+  const [all, hot] = await Promise.all([
+    browseRestaurants(supabase, { sort: "name", limit: 500 }),
+    getHotThisWeek(supabase, 10),
+  ]);
 
   const rails = RAILS.map((rail) => ({
     ...rail,
@@ -93,6 +96,27 @@ export default async function DiscoverPage() {
   return (
     <div className="space-y-10">
       <DiscoverSearch />
+
+      {hot.length > 0 && (
+        <section className="rise">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="display text-xl">🔥 Hot this week</h2>
+            <span className="shrink-0 text-[11px] text-faint">
+              Most diners in seven days
+            </span>
+          </div>
+
+          <div className="no-scrollbar rail -mx-5 mt-3 flex gap-3 overflow-x-auto px-5 pb-1">
+            {hot.map(({ restaurant, diners }) => (
+              <RestaurantTile
+                key={restaurant.id}
+                restaurant={restaurant}
+                badge={`${diners} this week`}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       {rails.map((rail, index) => (
         <section

@@ -28,10 +28,11 @@ const MS_PER_DAY = 86_400_000;
 /**
  * Strength of the Bayesian prior, in "virtual visits". A restaurant needs
  * roughly this many real diners before its own score dominates the market mean.
- * Five is deliberately gentle: on an island this small, waiting for 50 reviews
- * would leave most of the catalogue permanently unranked.
+ * Deliberately weak. On an island this small most restaurants will sit at three
+ * to eight diners for months, and a heavier prior flattens the whole catalogue
+ * toward the mean — every place reading 3.5-4.0 and nothing distinguishable.
  */
-export const PRIOR_WEIGHT = 5;
+export const PRIOR_WEIGHT = 3;
 
 /** Fallback prior when a market mean isn't available yet (cold start). */
 export const DEFAULT_PRIOR_MEAN = 3.5;

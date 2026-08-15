@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { GeneratedCard } from "@/components/GeneratedCard";
 import { ReturnBadge, Stars } from "@/components/Stars";
+import { cuisineEmoji, occasionEmoji, ratingMood } from "@/lib/cuisine";
 import { timeAgo } from "@/lib/time";
 import type { Visit } from "@/lib/types";
 
@@ -24,12 +26,28 @@ export type Activity =
       at: string;
     };
 
+/** Stable tint per person, so the same diner is the same colour everywhere. */
+const AVATAR_TINTS = [
+  "#153b63",
+  "#61754a",
+  "#b45a45",
+  "#6b5578",
+  "#3c4a56",
+  "#8a6d4b",
+];
+
 function Avatar({ name }: { name: string }) {
   // Initials on a tinted disc: no uploads yet, and a grey silhouette would be
   // worse than something with a bit of identity.
   const initials = name.slice(0, 2).toUpperCase();
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+
   return (
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-[11px] font-semibold text-dim">
+    <span
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white/90"
+      style={{ background: AVATAR_TINTS[hash % AVATAR_TINTS.length] }}
+    >
       {initials}
     </span>
   );
@@ -70,22 +88,50 @@ export function ActivityCard({ activity }: { activity: Activity }) {
           <span className="font-medium text-text">{who}</span> visited
         </p>
 
-        <Link
-          href={`/r/${visit.restaurant.slug}`}
-          className="display mt-1 block text-2xl leading-tight hover:text-accent"
-        >
-          {visit.restaurant.name}
+        <Link href={`/r/${visit.restaurant.slug}`} className="press mt-1.5 flex gap-3">
+          <span className="h-16 w-16 shrink-0 overflow-hidden rounded-xl">
+            {visit.restaurant.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={visit.restaurant.image.url}
+                alt=""
+                loading="lazy"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <GeneratedCard
+                name={visit.restaurant.name}
+                cuisines={visit.restaurant.cuisines}
+                showInitial={false}
+                className="h-full w-full"
+              />
+            )}
+          </span>
+
+          <span className="min-w-0 flex-1">
+            <span className="display block text-2xl leading-tight">
+              {visit.restaurant.name}
+            </span>
+            <span className="mt-0.5 block text-xs text-faint">
+              {cuisineEmoji(visit.restaurant.cuisines)}{" "}
+              {visit.restaurant.locality?.name ?? "Malta"}
+            </span>
+          </span>
         </Link>
 
-        {visit.restaurant.locality && (
-          <p className="mt-0.5 text-xs text-faint">
-            {visit.restaurant.locality.name}
-          </p>
-        )}
-
         <div className="mt-3 flex flex-wrap items-center gap-2.5">
-          {visit.rating !== null && <Stars value={visit.rating} size={17} />}
+          {visit.rating !== null && (
+            <>
+              <Stars value={visit.rating} size={17} />
+              <span className="text-xs text-faint">{ratingMood(visit.rating)}</span>
+            </>
+          )}
           <ReturnBadge wouldReturn={visit.would_return} />
+          {visit.occasion && (
+            <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-dim">
+              {occasionEmoji(visit.occasion)} {visit.occasion}
+            </span>
+          )}
           {visit.price_per_head !== null && (
             <span className="tabular text-xs text-faint">
               €{Number(visit.price_per_head).toFixed(0)} pp
@@ -93,7 +139,7 @@ export function ActivityCard({ activity }: { activity: Activity }) {
           )}
           {!visit.is_public && (
             <span className="rounded-full border px-2 py-0.5 text-[10px] text-faint">
-              Private
+              🔒 Private
             </span>
           )}
         </div>

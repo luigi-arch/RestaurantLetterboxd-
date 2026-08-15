@@ -5,6 +5,7 @@ import { GeneratedCard } from "@/components/GeneratedCard";
 import { RestaurantActions } from "@/components/RestaurantActions";
 import { PriceBand, ReturnBadge, Stars } from "@/components/Stars";
 import { authRedirectOrigin } from "@/config/site";
+import { cuisineEmoji, occasionEmoji } from "@/lib/cuisine";
 import { getRestaurantBySlug, getRestaurantVisits } from "@/lib/queries";
 import { createClient } from "@/lib/supabase/server";
 import { formatVisitDate } from "@/lib/time";
@@ -72,9 +73,21 @@ export default async function RestaurantPage({
       ? Math.round(spends.reduce((a, b) => a + b, 0) / spends.length)
       : null;
 
+  // What people come here for, most common first. Only shown once a couple of
+  // diners agree — one person's "date night" is not a characteristic.
+  const occasionCounts = new Map<string, number>();
+  for (const visit of visits) {
+    if (!visit.occasion) continue;
+    occasionCounts.set(visit.occasion, (occasionCounts.get(visit.occasion) ?? 0) + 1);
+  }
+  const popularOccasions = [...occasionCounts.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4);
+
   return (
     <div className="space-y-8">
-      <div className="rise -mx-5 aspect-[16/9] overflow-hidden sm:mx-0 sm:rounded-3xl">
+      <div className="rise relative -mx-5 aspect-[16/9] overflow-hidden sm:mx-0 sm:rounded-3xl">
         {restaurant.image ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -89,6 +102,15 @@ export default async function RestaurantPage({
             className="h-full w-full"
           />
         )}
+
+        {/* Stock photography must say so. An unlabelled generic shot on a real
+            restaurant's page is a small lie, and the kind that erodes trust in
+            everything else on the page. */}
+        {restaurant.image?.isPlaceholder && (
+          <span className="absolute right-3 bottom-3 rounded-full bg-black/65 px-2.5 py-1 text-[10px] text-white/90 backdrop-blur-sm">
+            Stock photo — not this restaurant
+          </span>
+        )}
       </div>
 
       <header className="rise">
@@ -97,7 +119,7 @@ export default async function RestaurantPage({
         </h1>
 
         <p className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm text-dim">
-          <span>{restaurant.locality?.name ?? "Malta"}</span>
+          <span>{cuisineEmoji(restaurant.cuisines)} {restaurant.locality?.name ?? "Malta"}</span>
           {restaurant.cuisines.length > 0 && (
             <>
               <Dot />
@@ -179,6 +201,23 @@ export default async function RestaurantPage({
             <span className="tabular text-text">€{averageSpend}</span> per head,
             across {spends.length} logged {spends.length === 1 ? "visit" : "visits"}.
           </p>
+        )}
+
+        {popularOccasions.length > 0 && (
+          <div className="mt-4">
+            <p className="label mb-2">What people come for</p>
+            <div className="flex flex-wrap gap-2">
+              {popularOccasions.map(([label, count]) => (
+                <span
+                  key={label}
+                  className="rounded-full bg-surface-2 px-3 py-1.5 text-sm text-dim"
+                >
+                  {occasionEmoji(label)} {label}
+                  <span className="tabular ml-1.5 text-faint">{count}</span>
+                </span>
+              ))}
+            </div>
+          </div>
         )}
       </section>
 
