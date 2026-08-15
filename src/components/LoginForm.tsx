@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { authRedirectOrigin } from "@/config/site";
 import { createClient } from "@/lib/supabase/client";
 
 type State = { status: "idle" | "sending" | "sent" | "error"; message?: string };
@@ -16,9 +17,11 @@ export function LoginForm() {
     const { error } = await createClient().auth.signInWithOtp({
       email,
       options: {
-        // Must be an allowed redirect URL in the Supabase Auth settings, or the
-        // link lands the user back on the site logged out with no explanation.
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        // Pinned to one canonical origin rather than window.location.origin:
+        // every Vercel alias would otherwise need its own entry in Supabase's
+        // redirect allow-list, and a missing entry fails silently by sending the
+        // user to the project's Site URL instead.
+        emailRedirectTo: `${authRedirectOrigin()}/auth/callback`,
       },
     });
 

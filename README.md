@@ -83,18 +83,30 @@ scale past "friends trying it out".
 **Moving to a dedicated project** is a find-and-replace of `rl_` plus a re-run of
 `supabase/migrations/`. Worth doing before this carries real users.
 
-### Required manual step: auth redirect
+### Required manual step: auth redirect allow-list
 
-Magic-link sign-in will not work until the deployed origin is allowed in
-Supabase → **Authentication → URL Configuration → Redirect URLs**:
+Magic-link sign-in does not work until the deployed origins are allowed in
+Supabase → **Authentication → URL Configuration → Redirect URLs**. Add all
+three:
 
 ```
-https://mejda-git-main-luigi-archs-projects.vercel.app/**
+https://mejda-luigi-archs-projects.vercel.app/**
+http://localhost:3000/**
 ```
 
-Without it Supabase ignores `emailRedirectTo` and bounces the user to the
-project's Site URL — which belongs to the other application — so the link
-appears to work and silently leaves you logged out.
+Two entries suffice because `src/config/site.ts` pins `emailRedirectTo` to one
+canonical origin rather than using `window.location.origin`. Otherwise every
+Vercel alias — production, `git-main`, and a fresh hostname per preview — would
+need allow-listing, and any missing one fails silently.
+
+**Do not change the Site URL.** It belongs to the other application sharing this
+project. That is precisely the failure this fixes: when `emailRedirectTo` is not
+on the allow-list, Supabase silently discards it and falls back to the Site URL,
+so the magic link delivers the user to the *other* product, logged out of this
+one. Adding entries to the allow-list has no effect on the other app.
+
+This is the clearest ongoing cost of the shared-project arrangement. A dedicated
+project would have neither the prefix nor this coupling.
 
 ## Getting started
 
